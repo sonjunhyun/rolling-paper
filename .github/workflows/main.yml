@@ -6,11 +6,22 @@ on:
 
 jobs:
   builds-and-deploy:
-    runs-on: self-hosted # git runner를 설정해서 self-hosted 기반 서버
-    timeout-minutes: 20 # timeout 옵션을 넣어서 충분한 시간 제공
+    runs-on: self-hosted # self-hosted 서버에서 실행
+    timeout-minutes: 20 # 20분 제한
     steps:
-    - name: Checkout
+    - name: Checkout (Ignore Submodules) # 서브모듈 무시
       uses: actions/checkout@v2
+      with:
+        submodules: false # 서브모듈 무시
+        fetch-depth: 0
+
+    - name: Remove submodule reference # 서브모듈 설정 제거 (확실하게)
+      run: |
+        git submodule deinit -f --all || true
+        rm -rf .git/modules/*
+        git rm --cached RollingPaper || true
+        rm -rf RollingPaper || true
+        echo "Submodules removed"
 
     - name: Login to Docker Hub # Docker Hub 로그인
       uses: docker/login-action@v1
@@ -18,15 +29,15 @@ jobs:
         username: ${{ secrets.DOCKER_HUB_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
-    - name: Build and push Docker image # Docker push 이미지 최신화
+    - name: Build and push Docker image # Docker push
       uses: docker/build-push-action@v2
       with:
         push: true
         tags: moveho/rolling-paper:latest
         build-args: |
-          SUBMODULES=false
+          SUBMODULES=false # Docker 빌드에서 서브모듈 무시
 
-    - name: SSH into VM and update Docker container # SSH로 VM 접근하여 sh 실행
+    - name: SSH into VM and update Docker container # VM에 SSH 후 업데이트
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.SSH_HOST }}
